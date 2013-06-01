@@ -1,15 +1,24 @@
 <html>
 <head>
-<script src="/socket.io/socket.io.js"></script>
-<script type="text/javascript" src="http://code.jquery.com/jquery-1.10.0.min.js"></script>
-<script type="text/javascript" src="https://www.youtube.com/iframe_api"></script>
 <script>
+var port = '10060';
+
 var ytReady = false;
 function onYouTubeIframeAPIReady() {
   ytReady = true;
 }
 
-var sock;
+var sock = undefined;
+</script>
+<script src="/socket.io/socket.io.js"></script>
+<script type="text/javascript" src="http://code.jquery.com/jquery-1.10.0.min.js"></script>
+<script type="text/javascript" src="http://code.jquery.com/ui/1.10.3/jquery-ui.min.js"></script>
+<script type="text/javascript" src="http://flesler.com/jquery/scrollTo/js/jquery.scrollTo-min.js"></script>
+<script type="text/javascript" src="https://www.youtube.com/iframe_api"></script>
+<script type="text/javascript" src="http://www.eyecon.ro/colorpicker/js/colorpicker.js"></script>
+<link rel='stylesheet' href="http://code.jquery.com/ui/1.10.3/themes/cupertino/jquery-ui.min.css"></link>
+<link rel='stylesheet' href="/css/colorpicker.css"></link>
+<script>
 $(function() {
   // play event
   function onPlayerReady(event) {
@@ -32,6 +41,8 @@ $(function() {
         'onReady': onPlayerReady
       }
     });
+    $(".afterLoad").show();
+    $("#title").html(data.title);
   }
 
   function onClientSync(data) {
@@ -55,11 +66,27 @@ $(function() {
     alert("server close");
   }
 
-  sock = io.connect('http://' + location.hostname + ':10060');
+  function onShowMsg(data) {
+    var obj = $("<div class='msg'></div>");
+    var text = data.text;
+    obj.css("color", data.color);
+    obj.html(text);
+    $("#msgList").append(obj);
+    $("#msgList").scrollTo(obj);
+  }
+
+  function onServerUpdate(data) {
+    console.log('onServerUpdate');
+    $("#title").html(data.title);
+  }
+
+  sock = io.connect('http://' + location.hostname + ':' + port);
   sock.on('clientRequestAck', onClientRequestAck);
   sock.on('clientError', onClientError);
   sock.on('clientSync', onClientSync);
   sock.on('serverClose', onServerClose);
+  sock.on('showMsg', onShowMsg);
+  sock.on('serverUpdate', onServerUpdate);
 
   $("#req").click(function() {
     console.log('req click');
@@ -70,10 +97,113 @@ $(function() {
     sock.emit('clientRequest', {
       'key': $("#key").val()
     });
-  })  
+  });
+
+  $("#sayInput").on('keydown', function(event) {
+    if (13 != event.which) {
+      return true;
+    }
+    if ('' == text) {
+      return true;
+    }
+    var text = $("#sayInput").val();
+    $("#sayInput").val("");
+    if (sock) {
+      sock.emit("sendMsg", {'text': text});
+      $("#sayInput").val("");
+    }
+  });
+
+  // start
+  $("#regBlock").dialog({
+    dialogClass: 'no-close',
+    modal: true,
+    autoOpen: true,
+    buttons: [
+      {
+        text: 'ok',
+        click: function() {
+          $(this).dialog("close");
+          sock.emit('regUser', {
+            'name': $("#name").val(),
+            'color': $("#color div").css("background-color")
+          });
+        }
+      }
+    ]
+  });
+  $(".afterLoad").hide();
+
+  $('#color').ColorPicker({
+    color: '#1fd91f',
+    onShow: function (colpkr) {
+      $(colpkr).fadeIn(500);
+      return false;
+    },
+    onHide: function (colpkr) {
+      $(colpkr).fadeOut(500);
+      sock.emit("regUser", {'color': $('#color div').css('background-color')});
+      return false;
+    },
+    onChange: function (hsb, hex, rgb) {
+      $('#color div').css('backgroundColor', '#' + hex);
+    }
+  });
+
+
 });
 
 </script>
+<style>
+  #player, #sayBlock {
+    display: inline-block;
+    vertical-align: top;
+  }
+  #sayBlock {
+    width: 320px;
+    height: 390px;
+  }
+  #msgList {
+    height: 360px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border: 1px solid;
+    box-shadow: #888 1px 1px 1px;
+    border-radius: 5px;
+    padding: 5px 5px 5px 5px;
+  }
+  #sayInput {
+    width: inherit;
+  }
+  #color {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    background: url(../images/select.png);
+  }
+  #color div {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 30px;
+    height: 30px;
+    background: url(../images/select.png) center;
+    background-color: #1fd91f;
+  }
+  .colorpicker {
+    z-index: 10000;
+  }
+  .msg {
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .afterLoad {
+  }
+  .no-close .ui-dialog-titlebar-close {
+    display: none;
+  }
+
+</style>
 
 </head>
 <body>
@@ -81,7 +211,24 @@ $(function() {
   <label for='key'>key: </label><input type='text' id='key'></input>
   <button id='req'>req</button>
 </div>
+<div id='titleBlock' class='afterLoad'>
+  <label for='title'>title: </label><span id='title'></span>
+</div>
+<div id='colorBlock'>
+  <label for="color">color: </label>
+  <div id='color'>
+    <div></div>
+  </div>
+</div>
 <hr />
 <div id='player'></div>
+<div id='sayBlock' class='afterLoad'>
+  <div id='msgList'>
+  </div>
+  <input type='text' id='sayInput'></input>
+</div>
+<div id='regBlock'>
+  <label for='name'>name: </label><input id='name' type='text'></input>
+</div>
 </body>
 </html>
