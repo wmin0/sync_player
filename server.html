@@ -1,0 +1,89 @@
+<html>
+<head>
+<script src="/socket.io/socket.io.js"></script>
+<script type="text/javascript" src="http://code.jquery.com/jquery-1.10.0.min.js"></script>
+<script type="text/javascript" src="https://www.youtube.com/iframe_api"></script>
+</head>
+<script>
+var ytReady = false;
+function onYouTubeIframeAPIReady() {
+  ytReady = true;
+}
+
+var sock = undefined;
+var intervalTrigger = undefined;
+$(function() {
+  function syncPlayerState() {
+    console.log('syncPlaterState');
+    sock.emit('serverSyncRequest', {
+      'state': player.getPlayerState(),
+      'sec': player.getCurrentTime()
+    })
+  }
+  // player event
+  function onPlayerStateChange(event) {
+    console.log('onPlayerStateChange', event);
+    switch(event.data) {
+      case YT.PlayerState.PLAYING:
+        console.log('playing!!');
+        syncPlayerState();
+        if (!intervalTrigger) {
+          intervalTrigger = setInterval(syncPlayerState, 5000);
+        }
+        break;
+      default:
+        if (intervalTrigger) {
+          clearInterval(intervalTrigger);
+          intervalTrigger = undefined;
+        }
+        break;
+    }
+  }
+
+  // sock init
+  function onServerError(data) {
+    alert(data.msg);
+  }
+
+  function onServerRequestAck(data) {
+    console.log('onServerRequestAck');
+    $("#key").html(data.key);
+    player = new YT.Player('player', {
+      height: '390',
+      width: '640',
+      videoId: data.url,
+      events: {
+        'onStateChange': onPlayerStateChange
+      }
+    });
+  }
+  sock = io.connect('http://' + location.hostname + ':10060');
+  sock.on('serverRequestAck', onServerRequestAck);
+  sock.on('serverError', onServerError);
+
+  $("#req").click(function() {
+    console.log('req click');
+    if (!ytReady) {
+      alert("script loading...");
+      return false;
+    }
+    sock.emit('serverRequest', {
+      'url': $("#url").val()
+    });
+  })
+});
+
+</script>
+<body>
+<div id='urlBlock'>
+  <label for='url'>video id: </label><input type='text' id='url'></input>
+  <button id='req'>req</button>
+</div>
+<div id='keyBlock'>
+  <label for='key'>key: </label>
+  <span id='key'></span>
+</div>
+<hr />
+<div id='player'></div>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<html>
+<head>
+<script src="/socket.io/socket.io.js"></script>
+<script type="text/javascript" src="http://code.jquery.com/jquery-1.10.0.min.js"></script>
+<script type="text/javascript" src="https://www.youtube.com/iframe_api"></script>
+<script>
+var ytReady = false;
+function onYouTubeIframeAPIReady() {
+  ytReady = true;
+}
+
+var sock;
+$(function() {
+  // play event
+  function onPlayerReady(event) {
+    console.log('onPlayerReady');
+    sock.emit('clientSyncRequest', {});
+  }
+
+  // sock init
+  function onClientError(data) {
+    alert(data.msg);
+  }
+
+  function onClientRequestAck(data) {
+    console.log('onClientRequestAck');
+    player = new YT.Player('player', {
+      height: '390',
+      width: '640',
+      videoId: data.url,
+      events: {
+        'onReady': onPlayerReady
+      }
+    });
+  }
+
+  function onClientSync(data) {
+    console.log('onClientSync');
+    switch (data.state) {
+      case YT.PlayerState.PLAYING:
+        player.playVideo();
+        break;
+      default:
+        player.stopVideo();
+        break;
+    }
+    if (Math.abs(data.sec - player.getCurrentTime()) > 1) {
+      player.seekTo(data.sec + 0.5, true);
+      console.log("seek!!");
+    }
+  }
+
+  function onServerClose(data) {
+    console.log('onServerClose');
+    alert("server close");
+  }
+
+  sock = io.connect('http://' + location.hostname + ':10060');
+  sock.on('clientRequestAck', onClientRequestAck);
+  sock.on('clientError', onClientError);
+  sock.on('clientSync', onClientSync);
+  sock.on('serverClose', onServerClose);
+
+  $("#req").click(function() {
+    console.log('req click');
+    if (!ytReady) {
+      alert("script loading...");
+      return false;
+    }
+    sock.emit('clientRequest', {
+      'key': $("#key").val()
+    });
+  })  
+});
+
+</script>
+
+</head>
+<body>
+<div id='keyBlock'>
+  <label for='key'>key: </label><input type='text' id='key'></input>
+  <button id='req'>req</button>
+</div>
+<hr />
+<div id='player'></div>
+</body>
+</html>
