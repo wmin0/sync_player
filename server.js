@@ -141,6 +141,17 @@ function onClientRequest(sock, data) {
     client.emit('showMsg', msg);
   }
   obj.server.emit('showMsg', msg);
+
+  // build list to new commer
+  var listMsg = buildMsg(obj.server.id, 'in room!!');
+  sock.emit('showMsg', listMsg);
+  for (id in obj.clients) {
+    if (id == sock.id) {
+      continue;
+    }
+    listMsg = buildMsg(id, "in room!!");
+    sock.emit('showMsg', listMsg);
+  }
 }
 
 function onServerSyncRequest(sock, data) {
